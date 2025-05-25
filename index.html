@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Canciones</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen p-4 sm:p-8">
+    <div class="container mx-auto max-w-4xl bg-white shadow-xl rounded-lg p-6 sm:p-8">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center text-blue-600 mb-6 sm:mb-8">Gestor de Canciones</h1>
+
+        <form id="songForm" class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <input type="text" id="title" placeholder="Título de la canción" required class="p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 col-span-1 md:col-span-2">
+            <input type="text" id="artist" placeholder="Artista (o IA)" class="p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            <input type="number" id="year" placeholder="Año" class="p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            <input type="text" id="tags" placeholder="Tags (separados por comas)" class="p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 col-span-1 md:col-span-2">
+            <textarea id="lyrics" placeholder="Letra de la canción" rows="6" class="p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 col-span-1 md:col-span-2"></textarea>
+            
+            <button type="submit" id="saveButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-md shadow-md transition duration-150 ease-in-out col-span-1 md:col-span-2">Guardar Canción</button>
+            <button type="button" id="clearButton" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-md shadow-md transition duration-150 ease-in-out col-span-1 md:col-span-2">Limpiar Formulario</button>
+        </form>
+
+        <div class="mb-8">
+            <input type="search" id="searchBar" placeholder="Buscar canciones por ID, título, artista, tags, letra..." class="p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 w-full">
+        </div>
+
+        <div class="overflow-x-auto">
+            <table id="songsTable" class="min-w-full bg-white border border-gray-200 rounded-lg shadow">
+                <thead>
+                    <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+                        <th class="py-3 px-4 text-left">ID</th>
+                        <th class="py-3 px-4 text-left">Título</th>
+                        <th class="py-3 px-4 text-left">Artista</th>
+                        <th class="py-3 px-4 text-left">Año</th>
+                        <th class="py-3 px-4 text-left">Tags</th>
+                        <th class="py-3 px-4 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="songsTableBody" class="text-gray-700 text-sm font-light">
+                    <!-- Song rows will be dynamically inserted here -->
+                    <tr><td colspan="6" class="text-center py-4">No hay canciones guardadas.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const DB_NAME = 'SongDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'songs';
+        let db;
+        let currentEditingSongId = null; 
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = (event) => {
+                    console.error('Database error:', event.target.errorCode);
+                    reject('Database error: ' + event.target.errorCode);
+                };
+
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    console.log('Database opened successfully.');
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        objectStore.createIndex('title', 'title', { unique: false });
+                        objectStore.createIndex('artist', 'artist', { unique: false });
+                        objectStore.createIndex('year', 'year', { unique: false });
+                        objectStore.createIndex('tags', 'tags', { unique: false }); // Corrected: was 'tag', should be 'tags' to match objectStore.createIndex('tags', 'tags') in instructions, though schema might need 'tagString' or similar depending on how tags are stored. Assuming 'tags' is a string for now.
+                        objectStore.createIndex('lyrics', 'lyrics', { unique: false });
+                        console.log('Object store created successfully.');
+                    }
+                };
+            });
+        }
+
+        // --- Form Handling Functions ---
+        function clearForm() {
+            document.getElementById('songForm').reset();
+            document.getElementById('title').value = ''; // Explicitly clear
+            document.getElementById('artist').value = '';
+            document.getElementById('year').value = '';
+            document.getElementById('tags').value = '';
+            document.getElementById('lyrics').value = '';
+            
+            currentEditingSongId = null;
+            document.getElementById('saveButton').textContent = 'Guardar Canción';
+            document.getElementById('title').focus();
+        }
+
+        function populateFormForEdit(song) {
+            if (!song) return;
+            document.getElementById('title').value = song.title;
+            document.getElementById('artist').value = song.artist || '';
+            document.getElementById('year').value = song.year || '';
+            document.getElementById('tags').value = song.tags || '';
+            document.getElementById('lyrics').value = song.lyrics || '';
+            
+            currentEditingSongId = song.id;
+            document.getElementById('saveButton').textContent = 'Actualizar Canción';
+            document.getElementById('title').focus();
+        }
+
+        async function saveSong(event) {
+            event.preventDefault(); 
+
+            const title = document.getElementById('title').value.trim();
+            const artist = document.getElementById('artist').value.trim();
+            const yearInput = document.getElementById('year').value;
+            const tags = document.getElementById('tags').value.trim();
+            const lyrics = document.getElementById('lyrics').value.trim();
+
+            if (!title) {
+                alert('El título es obligatorio.');
+                document.getElementById('title').focus();
+                return;
+            }
+
+            const songData = {
+                title,
+                artist,
+                year: yearInput ? parseInt(yearInput, 10) : null,
+                tags,
+                lyrics
+            };
+
+            try {
+                if (currentEditingSongId !== null) {
+                    songData.id = currentEditingSongId; 
+                    await updateSongInDB(songData);
+                    alert('Canción actualizada con éxito!');
+                } else {
+                    await addSongToDB(songData);
+                    alert('Canción guardada con éxito!');
+                }
+                clearForm(); 
+                await displaySongs(); 
+            } catch (error) {
+                console.error('Error saving song:', error);
+                alert('Error al guardar la canción: ' + error.message);
+            }
+        }
+        
+        // function updateSong(songId) { ... } // This specific placeholder can be removed or kept if planned for other use
+
+        // --- Display Functions ---
+        function renderSongRow(song) {
+            const row = document.createElement('tr');
+            row.className = 'border-b border-gray-200 hover:bg-gray-100';
+            row.setAttribute('data-song-id', song.id); // Store song ID on the row
+
+            row.innerHTML = `
+                <td class="py-3 px-4 text-left">${song.id}</td>
+                <td class="py-3 px-4 text-left">${song.title}</td>
+                <td class="py-3 px-4 text-left">${song.artist || ''}</td>
+                <td class="py-3 px-4 text-left">${song.year || ''}</td>
+                <td class="py-3 px-4 text-left">${song.tags || ''}</td>
+                <td class="py-3 px-4 text-center">
+                    <button class="edit-btn bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1 px-3 rounded-md shadow text-xs mr-1" data-id="${song.id}">Editar</button>
+                    <button class="delete-btn bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md shadow text-xs" data-id="${song.id}">Eliminar</button>
+                </td>
+            `;
+            return row;
+        }
+
+        async function displaySongs(songsToDisplay) {
+            const tableBody = document.getElementById('songsTableBody');
+            if (!tableBody) {
+                console.error('Table body not found!');
+                return;
+            }
+            tableBody.innerHTML = ''; // Clear existing rows
+
+            try {
+                const songs = songsToDisplay || await getAllSongsFromDB();
+
+                if (songs.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">No hay canciones guardadas.</td></tr>';
+                } else {
+                    songs.forEach(song => {
+                        const row = renderSongRow(song);
+                        tableBody.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                console.error('Error displaying songs:', error);
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-500">Error al cargar las canciones.</td></tr>';
+            }
+        }
+
+        // --- Data Functions ---
+        function addSongToDB(song) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    console.error('Database not initialized.');
+                    return reject('Database not initialized.');
+                }
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.add(song);
+
+                request.onsuccess = () => {
+                    console.log('Song added to DB:', request.result);
+                    resolve(request.result); // Returns the ID of the newly added song
+                };
+                request.onerror = (event) => {
+                    console.error('Error adding song to DB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        function getAllSongsFromDB() {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    console.error('Database not initialized.');
+                    return reject('Database not initialized.');
+                }
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = () => {
+                    resolve(request.result);
+                };
+                request.onerror = (event) => {
+                    console.error('Error fetching all songs:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        function getSongFromDB(id) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    console.error('Database not initialized.');
+                    return reject('Database not initialized.');
+                }
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                // IDs are numbers in IndexedDB when autoIncrement is true
+                const numId = parseInt(id, 10); 
+                const request = store.get(numId);
+
+                request.onsuccess = () => {
+                    if (request.result) {
+                        resolve(request.result);
+                    } else {
+                        reject('Song not found with ID: ' + id);
+                    }
+                };
+                request.onerror = (event) => {
+                    console.error('Error fetching song by ID:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        function updateSongInDB(song) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    console.error('Database not initialized.');
+                    return reject('Database not initialized.');
+                }
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.put(song); // put() will add or update
+
+                request.onsuccess = () => {
+                    console.log('Song updated in DB:', song.id);
+                    resolve(request.result); // Returns the key of the updated object
+                };
+                request.onerror = (event) => {
+                    console.error('Error updating song in DB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        function deleteSongFromDB(id) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    console.error('Database not initialized.');
+                    return reject('Database not initialized.');
+                }
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                 // IDs are numbers in IndexedDB
+                const numId = parseInt(id, 10);
+                const request = store.delete(numId);
+
+                request.onsuccess = () => {
+                    console.log('Song deleted from DB:', id);
+                    resolve(); 
+                };
+                request.onerror = (event) => {
+                    console.error('Error deleting song from DB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        // --- Search/Filter Functions ---
+        async function filterSongs() {
+            const searchTerm = document.getElementById('searchBar').value.toLowerCase().trim();
+            
+            try {
+                const allSongs = await getAllSongsFromDB();
+                if (searchTerm === '') {
+                    displaySongs(allSongs); // Display all songs if search is empty
+                    return;
+                }
+
+                const filteredSongs = allSongs.filter(song => {
+                    const idMatch = song.id.toString().toLowerCase().includes(searchTerm);
+                    const titleMatch = song.title.toLowerCase().includes(searchTerm);
+                    const artistMatch = song.artist && song.artist.toLowerCase().includes(searchTerm);
+                    const tagsMatch = song.tags && song.tags.toLowerCase().includes(searchTerm);
+                    const lyricsMatch = song.lyrics && song.lyrics.toLowerCase().includes(searchTerm);
+                    // Add year match if desired, converting year to string for includes()
+                    // const yearMatch = song.year && song.year.toString().includes(searchTerm);
+
+                    return idMatch || titleMatch || artistMatch || tagsMatch || lyricsMatch;
+                });
+                
+                displaySongs(filteredSongs); // Display only filtered songs
+            } catch (error) {
+                console.error('Error filtering songs:', error);
+                alert('Error al filtrar las canciones: ' + error.message);
+                // Optionally, display all songs or an error message in the table
+                const tableBody = document.getElementById('songsTableBody');
+                if (tableBody) {
+                    tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-500">Error al filtrar las canciones.</td></tr>';
+                }
+            }
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initDB();
+                console.log('IndexedDB initialized.');
+                await displaySongs(); // Initial display of songs
+
+                // Form submission (Save/Update)
+                const songForm = document.getElementById('songForm');
+                if (songForm) {
+                    songForm.addEventListener('submit', saveSong);
+                } else {
+                    console.error('Song form not found!');
+                }
+
+                // Clear Form button
+                const clearButton = document.getElementById('clearButton');
+                if (clearButton) {
+                    clearButton.addEventListener('click', clearForm);
+                } else {
+                    console.error('Clear button not found!');
+                }
+
+                // Search bar input
+                const searchBar = document.getElementById('searchBar');
+                if (searchBar) {
+                    searchBar.addEventListener('input', filterSongs);
+                } else {
+                    console.error('Search bar not found!');
+                }
+
+                // Event delegation for Edit and Delete buttons on the songs table
+                const songsTableBody = document.getElementById('songsTableBody');
+                if (songsTableBody) {
+                    songsTableBody.addEventListener('click', async (event) => {
+                        if (event.target.classList.contains('edit-btn')) {
+                            const songId = event.target.dataset.id;
+                            if (!songId) {
+                                console.error('Edit button clicked but no song ID found.');
+                                return;
+                            }
+                            try {
+                                const song = await getSongFromDB(songId); // getSongFromDB expects ID
+                                if (song) {
+                                    populateFormForEdit(song);
+                                    window.scrollTo(0, 0); // Scroll to top to see the form
+                                } else {
+                                    alert('Canción no encontrada para editar.');
+                                }
+                            } catch (error) {
+                                console.error('Error fetching song for edit:', error);
+                                alert('Error al cargar la canción para editar: ' + error.message);
+                            }
+                        } else if (event.target.classList.contains('delete-btn')) {
+                            const songId = event.target.dataset.id;
+                            if (!songId) {
+                                console.error('Delete button clicked but no song ID found.');
+                                return;
+                            }
+                            if (confirm(`¿Estás seguro de que quieres eliminar la canción ID ${songId}?`)) {
+                                try {
+                                    await deleteSongFromDB(songId); // deleteSongFromDB expects ID
+                                    await displaySongs(); // Refresh list
+                                    alert('Canción eliminada con éxito.');
+                                } catch (error) {
+                                    console.error('Error deleting song:', error);
+                                    alert('Error al eliminar la canción: ' + error.message);
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    console.error('Songs table body not found for event delegation!');
+                }
+
+            } catch (error) {
+                console.error('Failed to initialize application:', error);
+                const tableBody = document.getElementById('songsTableBody');
+                if (tableBody) {
+                    tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-500">Error fatal al iniciar la aplicación. Verifique la consola.</td></tr>';
+                } else {
+                    // If table body itself is missing, alert or log more generally
+                    alert('Error fatal al iniciar la aplicación. No se pudo encontrar el cuerpo de la tabla de canciones.');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
