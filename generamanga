@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor de Manga Cósmico con IA: Iván Raziel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-deep-space: #0A0A14; /* Even deeper space */
+            --bg-panel: #161628; 
+            --border-color: #28283A;
+            --text-primary: #E8E8FF;
+            --text-secondary: #B0B0D0;
+            --accent-cosmic-blue: #90CAF9; /* Lighter blue */
+            --accent-gold: #FFCA28; /* Softer gold */
+            --font-title: 'Cinzel', serif;
+            --font-body: 'Inter', sans-serif;
+        }
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-deep-space);
+            color: var(--text-primary);
+            overscroll-behavior-y: contain;
+            line-height: 1.7;
+        }
+        .manga-panel {
+            border: 2px solid var(--border-color); background-color: var(--bg-panel);
+            margin-bottom: 30px; border-radius: 18px; overflow: hidden;
+            opacity: 0; transform: translateY(30px);
+            transition: opacity 0.8s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative; box-shadow: 0 12px 35px rgba(0,0,0,0.6);
+        }
+        .manga-panel.visible { opacity: 1; transform: translateY(0); }
+        .manga-image-container {
+            width: 100%; padding-top: 65%; position: relative; /* Slightly less tall */
+            background-color: #202030; cursor: zoom-in;
+            border-bottom: 2px solid var(--border-color);
+        }
+        .manga-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .panel-info {
+            position: absolute; top: 10px; left: 10px; background-color: rgba(0,0,0,0.6);
+            color: var(--accent-gold); padding: 5px 10px; border-radius: 6px; font-size: 0.8rem;
+            font-weight: 600; z-index: 5;
+        }
+        .manga-text-content { padding: 28px 35px; font-size: 1.15rem; color: var(--text-secondary); }
+        .narration { font-style: italic; color: #C0C0E0; }
+        .dialogue { font-weight: 500; } 
+        .character-name { color: var(--accent-cosmic-blue); font-weight: 700; }
+        .loader {
+            border: 8px solid #2A2A3E; border-top: 8px solid var(--accent-cosmic-blue);
+            border-radius: 50%; width: 70px; height: 70px; animation: spin 1.3s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #mainNav button, #chapterSelect, #languageSelect, #voiceSelect, #presentationModeToggle, #nextPanelButton, .nav-arrow, .ai-button, .gallery-button {
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            border-radius: 10px; color: var(--text-primary); font-weight: 600;
+            padding: 0.7rem 1.4rem; border: 1px solid var(--border-color);
+            background-color: var(--bg-panel);
+        }
+        #mainNav button:hover, #chapterSelect:hover, #languageSelect:hover, #voiceSelect:hover, #presentationModeToggle:hover, #nextPanelButton:hover, .nav-arrow:hover, .ai-button:hover, .gallery-button:hover {
+            transform: translateY(-3px); box-shadow: 0 6px 12px rgba(var(--accent-gold-rgb,255,202,40), 0.3);
+            background-color: #202034;
+        }
+        .main-nav-button { background-color: var(--accent-gold); color: var(--bg-deep-space); }
+        .main-nav-button:hover { background-color: #FFB300; }
+
+        .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .settings-grid label { font-weight: 600; color: var(--accent-cosmic-blue); }
+        .settings-grid select { width: 100%; }
+
+
+        .summary-box, .ai-explore-box, .gallery-section {
+            background-color: var(--bg-panel); border: 1px solid var(--border-color);
+            padding: 30px; margin-top: 40px; margin-bottom: 30px; border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .summary-box h3, .ai-explore-box h3, .gallery-section h3 {
+            font-family: var(--font-title); color: var(--accent-gold); font-size: 1.8em;
+            margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;
+        }
+        .modal { 
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(10,10,20,0.95); align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        .modal-content { margin: auto; display: block; max-width: 90vw; max-height: 90vh; border-radius: 10px; }
+        .close-modal {
+            position: absolute; top: 20px; right: 35px; color: #f1f1f1; font-size: 50px;
+            font-weight: bold; transition: 0.3s; cursor: pointer; text-shadow: 0 0 8px #000;
+        }
+        .close-modal:hover { color: var(--accent-cosmic-blue); }
+
+        .tts-button, .ai-button {
+            background-color: rgba(70,70,100,0.7); border: 1px solid var(--border-color);
+            padding: 8px 12px; font-size: 0.85rem; margin-top: 12px; margin-right: 10px;
+        }
+        .tts-button:hover, .ai-button:hover { background-color: rgba(50,50,80,0.9); }
+        .tts-button.speaking { background-color: var(--accent-cosmic-blue); color: var(--bg-deep-space); }
+        
+        .ai-summary-display {
+            font-size: 0.95em; color: var(--accent-cosmic-blue); margin-top: 15px; padding: 12px;
+            background-color: rgba(30,30,50,0.6); border-radius: 8px; border-left: 4px solid var(--accent-cosmic-blue);
+        }
+
+        .switch { position: relative; display: inline-block; width: 54px; height: 30px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #3A3A50; transition: .4s; border-radius: 30px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 22px; width: 22px; left: 4px; bottom: 4px;
+            background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 0 3px rgba(0,0,0,0.3);
+        }
+        input:checked + .slider { background-color: var(--accent-gold); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        .nav-arrow {
+            background-color: rgba(22, 22, 40, 0.85); width: 55px; height: 55px; font-size: 28px;
+            border: 1px solid var(--border-color);
+        }
+        #screenPrevArrow { left: 20px; } #screenNextArrow { right: 20px; }
+        .placeholder-message { text-align: center; padding: 50px; font-size: 1.3em; color: #666688; }
+        
+        #aiExploreInput {
+            background-color: #202030; color: var(--text-primary); border: 1px solid var(--border-color);
+            padding: 0.7rem 1rem; border-radius: 8px; margin-right: 12px; flex-grow: 1;
+        }
+        .ai-explore-modal-content {
+            background-color: var(--bg-panel); color: var(--text-primary); margin: 8% auto; padding: 35px;
+            border: 1px solid var(--border-color); border-radius: 15px; width: 85%; max-width: 750px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6); position: relative;
+        }
+        .ai-explore-modal-content h4 { font-family: var(--font-title); color: var(--accent-gold); font-size: 2em; margin-bottom: 20px; }
+        .ai-explore-modal-content p { line-height: 1.8; margin-bottom: 12px; font-size: 1.05rem; }
+
+        .character-card {
+            background-color: #202030; border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 20px; text-align: center;
+            box-shadow: 0 6px 15px rgba(var(--accent-gold-rgb, 255,202,40), 0.1); 
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .character-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(var(--accent-gold-rgb, 255,202,40), 0.2);
+        }
+        .character-card-image-container {
+            width: 100%; padding-top: 100%; 
+            position: relative; background-color: #2c2c3e; border-radius: 8px;
+            margin-bottom: 15px; overflow: hidden; border: 2px solid var(--accent-gold);
+        }
+        .character-card-image { position: absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; }
+        .character-card h5 { font-family: var(--font-title); font-size: 1.5em; color: var(--accent-gold); margin-bottom: 8px; }
+        .character-card p { font-size: 0.9em; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5; }
+        .character-card strong { color: var(--accent-cosmic-blue); }
+
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; }
+        .multiverse-map-container { text-align: center; margin-top: 20px; }
+        .multiverse-map-container img { max-width: 100%; border-radius: 10px; border: 2px solid var(--border-color); }
+
+        /* Continue Modal */
+        #continueModal {
+            display: none; position: fixed; z-index: 1005; left:0; top:0; width:100%; height:100%;
+            background-color: rgba(10,10,20,0.95); backdrop-filter: blur(5px);
+            align-items: center; justify-content: center;
+        }
+        .continue-modal-content {
+            background-color: var(--bg-panel); padding: 30px 40px; border-radius: 15px;
+            text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+        }
+        .continue-modal-content h3 { font-family: var(--font-title); color: var(--accent-gold); font-size: 1.8em; margin-bottom: 20px;}
+        .continue-modal-content button { margin: 0 10px; padding: 10px 20px; font-size: 1em;}
+
+    </style>
+</head>
+<body class="antialiased">
+    <div id="mainContent" class="container mx-auto p-4 max-w-4xl relative">
+        <header class="text-center mb-10">
+            <h1 class="text-5xl sm:text-6xl font-bold text-[var(--accent-gold)]" style="font-family: var(--font-title);">El Llamado del Vacío</h1>
+            <p class="text-xl sm:text-2xl text-[var(--text-secondary)] mt-2">Una Aventura Interactiva de Iván Raziel</p>
+        </header>
+
+        <nav id="mainNav" class="mb-8 flex flex-wrap justify-center items-center gap-4">
+            <label for="chapterSelect" class="text-[var(--accent-cosmic-blue)] font-semibold text-lg">Capítulo:</label>
+            <select id="chapterSelect" class="w-full md:w-auto">
+                </select>
+            <button id="galleryToggle" class="gallery-button bg-[var(--accent-gold)] text-[var(--bg-deep-space)]">
+                <i class="fas fa-images mr-2"></i>Galería
+            </button>
+        </nav>
+        
+        <div class="settings-grid mb-8 p-4 bg-[var(--bg-panel)] rounded-lg border border-[var(--border-color)]">
+            <div>
+                <label for="languageSelect" class="block mb-1">Idioma (Texto/Voz):</label>
+                <select id="languageSelect">
+                    <option value="es-MX">Español (México)</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="ja-JP">日本語 (Japón)</option>
+                </select>
+            </div>
+            <div>
+                <label for="voiceSelect" class="block mb-1">Voz de Narrador:</label>
+                <select id="voiceSelect" disabled>
+                    <option value="">Voz por defecto del sistema</option>
+                </select>
+            </div>
+        </div>
+
+
+        <div class="mb-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+            <button id="presentationModeToggle" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-5 rounded-lg w-full sm:w-auto text-base">
+                <i class="fas fa-film mr-2"></i>Modo Cine
+            </button>
+            <label id="autoReadToggleLabel" for="autoReadToggle" class="flex items-center cursor-pointer bg-gray-700 hover:bg-gray-600 text-sky-300 font-semibold py-3 px-5 rounded-lg w-full sm:w-auto justify-center text-base">
+                <span class="mr-2 text-sm"><i class="fas fa-microphone-alt"></i> Lectura Automática</span>
+                <div class="switch"> <input type="checkbox" id="autoReadToggle"> <span class="slider"></span> </div>
+            </label>
+             <label id="autoAdvanceToggleLabel" for="autoAdvanceToggle" class="flex items-center cursor-pointer bg-gray-700 hover:bg-gray-600 text-sky-300 font-semibold py-3 px-5 rounded-lg w-full sm:w-auto justify-center text-base hidden">
+                <span class="mr-2 text-sm"><i class="fas fa-fast-forward"></i> Avance Automático</span>
+                <div class="switch"> <input type="checkbox" id="autoAdvanceToggle"> <span class="slider"></span> </div>
+            </label>
+            <button id="nextPanelButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-5 rounded-lg hidden w-full sm:w-auto text-base">
+                <i class="fas fa-arrow-right"></i> Siguiente Panel
+            </button>
+        </div>
+        
+        <div id="mangaDisplay" class="w-full"></div>
+        <div id="galleryDisplay" class="hidden gallery-section">
+            <h3 class="text-center">Galería de Personajes y Artefactos</h3>
+            <div id="characterGalleryGrid" class="gallery-grid mt-6 mb-10"></div>
+            <h3 class="text-center mt-10">Mapa Conceptual del Multiverso</h3>
+            <div id="multiverseMapContainer" class="multiverse-map-container">
+                 <div class="manga-image-container" style="padding-top: 56.25%; cursor:default;"> <img id="multiverseMapImage" src="https://placehold.co/1200x675/252538/A0A0CC?text=Mapa+del+Multiverso+(Generando...)" alt="Mapa Conceptual del Multiverso" class="manga-image">
+                </div>
+            </div>
+        </div>
+
+        <div id="summaryDisplay" class="summary-box hidden">
+            <h3>Resumen del Capítulo</h3> <p id="summaryText"></p>
+        </div>
+
+        <div class="ai-explore-box">
+            <h3><i class="fas fa-brain mr-2 text-[var(--accent-gold)]"></i>Explorar Concepto con IA</h3>
+            <div class="flex items-center mt-3">
+                <input type="text" id="aiExploreInput" placeholder="Ej: Silencio Primordial, Luces del Destino...">
+                <button id="aiExploreButton" class="ai-button bg-purple-700 hover:bg-purple-800 text-white font-semibold py-2 px-4 rounded-lg">
+                    <i class="fas fa-search-plus mr-2"></i>Explorar
+                </button>
+            </div>
+        </div>
+
+        <div id="paginationControls" class="mt-10 flex justify-between items-center">
+            <button id="prevPage" class="bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3 px-5 rounded-lg disabled:opacity-40 text-base">
+                <i class="fas fa-arrow-left"></i> Anterior
+            </button>
+            <span id="pageIndicator" class="text-[var(--text-secondary)] text-lg"></span>
+            <button id="nextPage" class="bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3 px-5 rounded-lg disabled:opacity-40 text-base">
+                Siguiente <i class="fas fa-arrow-right"></i>
+            </button>
+        </div>
+
+        <button id="screenPrevArrow" class="nav-arrow" aria-label="Anterior"><i class="fas fa-chevron-left"></i></button>
+        <button id="screenNextArrow" class="nav-arrow" aria-label="Siguiente"><i class="fas fa-chevron-right"></i></button>
+
+        <div id="loadingIndicator" class="fixed inset-0 bg-[var(--bg-deep-space)] bg-opacity-90 flex items-center justify-center z-[1001] hidden">
+            <div class="text-center p-10 bg-[var(--bg-panel)] rounded-xl shadow-2xl border border-[var(--border-color)]">
+                <div class="loader mx-auto"></div>
+                <p class="text-[var(--accent-cosmic-blue)] text-2xl mt-6" id="loadingIndicatorText">Generando imágenes...</p>
+                <p class="text-[var(--text-secondary)] text-md mt-2">Esto puede tardar unos momentos.</p>
+            </div>
+        </div>
+
+        <div id="imageModal" class="modal" onclick="closeModalOutside(event, 'imageModal')">
+            <span class="close-modal" onclick="document.getElementById('imageModal').style.display='none'">&times;</span>
+            <img class="modal-content" id="modalImage">
+        </div>
+
+        <div id="aiExploreResultModal" class="modal" onclick="closeModalOutside(event, 'aiExploreResultModal')">
+            <div class="ai-explore-modal-content">
+                <span class="close-modal" onclick="document.getElementById('aiExploreResultModal').style.display='none'">&times;</span>
+                <h4><i class="fas fa-atom mr-2 text-[var(--accent-gold)]"></i>Exploración del Concepto</h4>
+                <div id="aiExploreModalText" class="max-h-[60vh] overflow-y-auto pr-2"></div>
+            </div>
+        </div>
+
+        <div id="continueModal" class="modal">
+            <div class="continue-modal-content">
+                <h3>Continuar Aventura</h3>
+                <p id="continueModalText" class="mb-6 text-lg"></p>
+                <button id="continueYes" class="main-nav-button bg-[var(--accent-gold)] text-[var(--bg-deep-space)] hover:bg-yellow-400">Sí, continuar</button>
+                <button id="continueNo" class="bg-gray-600 hover:bg-gray-700 text-white">Empezar de nuevo</button>
+            </div>
+        </div>
+        
+        <footer class="text-center mt-20 py-10 border-t border-[var(--border-color)]">
+            <p class="text-sm text-[var(--text-secondary)]">&copy; 2025 Visor de Manga Cósmico. Adaptación de la obra de Iván Raziel.</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- Character Definitions & Data ---
+        const CHAR_DESC = { 
+            IVAN: "Iván, un joven de pelo castaño corto y algo desordenado, ojos avellana decididos, complexión media, vestido con ropa de viajero práctica y algo desgastada (túnica de lino marrón claro sobre pantalones oscuros, botas de cuero). Estilo manga shonen/seinen, expresivo.",
+            RAZI: "Razi, una mujer etérea y hermosa con cabello plateado muy largo y suelto que parece flotar y tener luz propia, ojos como galaxias (azul profundo/púrpura con motas estelares brillantes), piel pálida, vistiendo elegantes túnicas blancas o azul pálido que fluyen con gracia. Estilo manga seinen/fantasía, serena y poderosa.",
+            FIGURA_VACIO: "Una figura colosal, imponente, vagamente humanoide pero sin rasgos definidos, compuesta de sombras arremolinadas y luz interna tenue, contornos indistintos y fluctuantes, transmitiendo inmenso poder cósmico y misterio. Estilo manga de fantasía oscura, lovecraftiano.",
+            ANCIANO_GUARDIAN: "Un anciano guardián sabio y etéreo, rostro arrugado pero amable, con una larga barba blanca y fluida, ojos penetrantes que parecen contener la sabiduría de eras (quizás brillando como estrellas distantes), vistiendo túnicas sencillas y fluidas de color neutro. Estilo manga de fantasía mística.",
+            TUBULA: "Túbula, un Guardián Original, figura alta e imponente con rasgos angulares, túnicas oscuras, emanando autoridad y conocimiento antiguo. Estilo manga seinen/fantasía.",
+            ECO_ROTO: "El Eco Roto, una manifestación de desequilibrio, entidad oscura y amorfa con tentáculos de sombra y múltiples ojos rojos brillantes. Estilo manga de horror cósmico.",
+            GUIA_CORRUPTO: "Un Guía Corrupto, figura encapuchada y sombría, rostro oculto o distorsionado, emanando energía oscura. Estilo manga de fantasía oscura."
+        };
+
+        const characterGalleryData = [
+            { 
+                id: "ivan", name: "Iván", 
+                imagePrompt: `Estilo carta de personaje manga: ${CHAR_DESC.IVAN}, de pie en una pose heroica sutil, un brillo de energía luminosa y sombría entrelazándose débilmente a su alrededor, fondo cósmico abstracto.`, 
+                imageUrl: null, generated: false,
+                description: "Un joven elegido, arrastrado a un conflicto multiversal, aprendiendo a dominar la luz y la oscuridad.",
+                powers: "Percepción del Silencio Primordial, manipulación de la Luz del Destino, afinidad con la dualidad (Umbra y Lux).",
+                skills: "Determinación férrea, aprendizaje acelerado, empatía creciente, voluntad indomable.",
+                items: "Fragmento de Esencia (esfera de cristal con luz interior)."
+            },
+            {
+                id: "razi", name: "Razi",
+                imagePrompt: `Estilo carta de personaje manga: ${CHAR_DESC.RAZI}, flotando con gracia, su cabello plateado fluyendo, rodeada por una suave aura de energía caótica controlada (rayos violetas y azules), fondo de nebulosa estelar.`,
+                imageUrl: null, generated: false,
+                description: "Una Guardiana del Renacer, serena y poderosa, guía de Iván en los misterios del multiverso.",
+                powers: "Control sobre las tormentas y el caos (Caos Contenido), conexión con las energías del multiverso, sabiduría ancestral.",
+                skills: "Maestra del equilibrio, guía espiritual, combatiente experta, manipulación de energía elemental.",
+                items: "Su propia energía caótica manifestada como armas o escudos."
+            }
+        ];
+        
+        const mangaData = [
+            { 
+                title: "Prólogo: El Llamado del Vacío", id: "prologo",
+                summary: "Iván es convocado a una dimensión desconocida por una figura misteriosa que le habla del Silencio Primordial y le entrega una esfera de luz.",
+                panels: [ 
+                    { type: 'narration', text: "El aire vibraba con una frecuencia que no era sonido, un eco primordial que resonaba en el alma antes de que los oídos pudieran registrar algo.", imagePrompt: `Manga panel: Primer plano de los ojos de ${CHAR_DESC.IVAN} abriéndose lentamente, reflejando una luz misteriosa y desconocida. Ambiente etéreo.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Iván abrió los ojos, aunque no recordaba haberlos cerrado. Estaba en un lugar que no reconocía, un espacio indefinido donde la luz y la sombra se entrelazaban como hilos de un tapiz eterno.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} de pie, confundido, en una vasta dimensión surrealista donde la luz y la sombra se entrelazan como cintas de energía.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Frente a él, una figura imponente emergió del vacío, sus contornos fluctuando entre lo tangible y lo irreal.", imagePrompt: `Manga panel: ${CHAR_DESC.FIGURA_VACIO} emergiendo majestuosamente del vacío, su forma cambiando constantemente, frente a un asombrado ${CHAR_DESC.IVAN}.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Figura del Vacío', text: "Has sido elegido." , imagePrompt: `Manga panel: Primer plano del rostro (o área facial si no tiene) de la ${CHAR_DESC.FIGURA_VACIO}, con runas o energía emanando mientras habla.`, imageUrl: null, generated: false, keyScene: true},
+                    { type: 'narration', text: "Iván no respondió. No porque no tuviera preguntas, sino porque sentía que cualquier palabra que pronunciara sería insuficiente frente a la magnitud de lo que estaba presenciando.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} en silencio, con una expresión de asombro y aprensión, mirando a la imponente figura.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "La figura, cuya forma parecía cambiar constantemente, extendió una mano hacia él. En su palma había una pequeña esfera de luz que pulsaba suavemente, como si estuviera viva.", imagePrompt: `Manga panel: La mano etérea de la ${CHAR_DESC.FIGURA_VACIO} extendida, sosteniendo una brillante esfera de luz pulsante.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Figura del Vacío', text: "Esto es el Silencio Primordial. Es el origen de todo, el estado anterior a la existencia misma." , imagePrompt: `Manga panel: La esfera de luz en la palma de la figura brillando intensamente, con símbolos cósmicos flotando a su alrededor.`, imageUrl: null, generated: false, keyScene: true},
+                    { type: 'dialogue', character: 'Figura del Vacío', text: "Dentro de esta luz reside el conocimiento que necesitarás para enfrentar lo que está por venir." , imagePrompt: null, imageUrl: null, generated: false}, 
+                    { type: 'narration', text: "Iván extendió su propia mano, dubitativo, pero antes de que pudiera tocar la esfera, esta se desvaneció en el aire, dejando tras de sí un rastro cálido en su piel.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} extendiendo su mano, la esfera de luz desvaneciéndose en partículas luminosas justo antes del contacto.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Una sensación extraña lo invadió, como si algo dentro de él hubiera despertado después de siglos de letargo.", imagePrompt: `Manga panel: Primer plano de ${CHAR_DESC.IVAN}, sus ojos brillando con una nueva luz interior, una expresión de despertar y poder latente.`, imageUrl: null, generated: false, keyScene: true }
+                ]
+            },
+            { 
+                title: "Capítulo 1: El Silencio Primordial", id: "capitulo1",
+                summary: "Iván explora el multiverso y el concepto del Silencio Primordial. Enfrenta una tormenta consciente y conoce a Razi, una Guardiana.",
+                panels: [ 
+                    { type: 'narration', text: "El mundo al que Iván había llegado no era uno solo, sino muchos. Dimensiones superpuestas, realidades fragmentadas, cada una con sus propias reglas y secretos.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} de pie en el borde de un acantilado cósmico, observando un vasto panorama de múltiples dimensiones flotantes, cada una con un aspecto único.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Pero en medio de esa vastedad caótica, había algo constante: el Silencio Primordial. Era un concepto que los antiguos llamaban 'el latido del multiverso', una fuerza invisible que conectaba todo lo que existía.", imagePrompt: `Manga panel: Visualización abstracta del Silencio Primordial como ondas de energía sutiles y serenas que fluyen a través de las diferentes dimensiones.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Desde el momento en que tocó la esfera de luz, Iván comenzó a percibirlo. Al principio, era apenas un murmullo, una sensación de calma que surgía en los momentos más inesperados.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} con los ojos cerrados, una mano sobre su pecho, sintiendo el murmullo del Silencio Primordial. Una leve aura lo rodea.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Pero pronto se dio cuenta de que este silencio no era pasivo; era activo, consciente incluso. Era una presencia que lo observaba, lo guiaba, y a veces lo retaba.", imagePrompt: `Manga panel: Una energía sutil y consciente, representada como ojos observadores hechos de luz o sombras, rodeando a ${CHAR_DESC.IVAN} mientras explora.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Su primer desafío llegó en forma de tormenta. Literalmente. Estaba caminando por un paisaje desolado, una planicie gris donde el horizonte parecía infinito, cuando el cielo se oscureció de repente.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} caminando por una vasta llanura gris y desolada. En el horizonte, nubes de tormenta masivas y oscuras se acumulan rápidamente.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Los vientos comenzaron a rugir, y el suelo tembló bajo sus pies. Pero lo que más lo desconcertó fue la voz que surgió de la tormenta.", imagePrompt: `Manga panel: La tormenta desatada, vientos huracanados azotando a ${CHAR_DESC.IVAN}, quien lucha por mantenerse en pie. Relámpagos iluminan la escena.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Tormenta (voz)', text: "¿Quién eres?", imagePrompt: `Manga panel: Olas de sonido o energía visibles emanando de la tormenta, formando interrogaciones o runas amenazantes. ${CHAR_DESC.IVAN} en el centro.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Iván', text: "Soy Iván. Y estoy aquí para aprender.", imagePrompt: `Manga panel: Primer plano del rostro determinado de ${CHAR_DESC.IVAN} mientras grita contra el viento de la tormenta.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "La tormenta pareció detenerse por un instante... los vientos lo envolvieron, elevándolo del suelo. Iván sintió que su cuerpo era arrastrado por corrientes invisibles, pero en lugar de pánico, experimentó una extraña serenidad.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} siendo levantado del suelo por vientos arremolinados, pero su expresión es serena, no temerosa.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Voz Interior', text: "El Silencio Primordial no es solo un estado externo. Es también un refugio interior. Encuéntralo, y encontrarás la calma incluso en medio del caos.", imagePrompt: `Manga panel: Una silueta luminosa de ${CHAR_DESC.IVAN} meditando dentro de su propia mente, rodeado de calma mientras el caos de la tormenta se ve en el exterior.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Con estas palabras resonando en su cabeza, Iván cerró los ojos y se concentró en su respiración... logró encontrar un punto de quietud dentro de sí mismo. Era como si estuviera flotando en un océano tranquilo mientras las olas salvajes chocaban contra él sin tocarlo realmente.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} meditando en el ojo de la tormenta, una esfera de calma lo rodea mientras el caos ruge a su alrededor.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Cuando abrió los ojos nuevamente, la tormenta había desaparecido. El paisaje seguía siendo el mismo, pero ahora había una figura parada frente a él. Era ${CHAR_DESC.RAZI}.", imagePrompt: `Manga panel: ${CHAR_DESC.RAZI} de pie con elegancia en el paisaje ahora calmado, su cabello plateado ondeando suavemente. ${CHAR_DESC.IVAN} la observa con asombro.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Razi', text: "Bienvenido, Iván. Soy Razi, y soy una de los Guardianes del Renacer. Juntos, aprenderemos a equilibrar las fuerzas que amenazan con desgarrar el multiverso.", imagePrompt: `Manga panel: Primer plano de ${CHAR_DESC.RAZI}, una sonrisa enigmática y ojos llenos de sabiduría galáctica.`, imageUrl: null, generated: false, keyScene: true }
+                ]
+            },
+            {
+                title: "Capítulo 2: El Eco de las Luces", id: "capitulo2",
+                summary: "Iván y Razi encuentran una Luz del Destino. Un anciano guardián le entrega a Iván un Fragmento de Esencia.",
+                panels: [
+                    { type: 'narration', text: "El primer encuentro con las Luces del Destino cambió todo para Iván. Fue durante una noche sin estrellas, mientras él y Razi descansaban en un claro rodeado de árboles retorcidos que parecían susurrar secretos antiguos.", imagePrompt: `Manga panel: Noche. ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} en un claro con árboles retorcidos. ${CHAR_DESC.IVAN} está despierto, inquieto.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Iván', text: "¿Escuchas eso?", imagePrompt: null, imageUrl: null, generated: false },
+                    { type: 'dialogue', character: 'Razi', text: "Escucho muchas cosas, Iván. Pero tú te refieres a algo más, ¿verdad?", imagePrompt: `Manga panel: ${CHAR_DESC.RAZI} abriendo los ojos lentamente, su cabello plateado brillando débilmente.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Caminaron en silencio, dejando atrás el campamento. El aire se volvió más denso, cargado de una energía que Iván no podía explicar.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} caminando por un bosque oscuro y denso, una energía palpable en el aire.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Finalmente, llegaron a un pequeño lago escondido entre las rocas. Su superficie estaba completamente quieta, como un espejo perfecto que reflejaba el vacío del cielo nocturno.", imagePrompt: `Manga panel: Un lago escondido entre rocas, su superficie como un espejo negro reflejando un cielo sin estrellas.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Pero entonces, algo sucedió. Una luz blanca emergió del centro del lago, expandiéndose lentamente hasta iluminar todo el claro. No era una luz común; parecía viva, pulsando con un ritmo que coincidía con los latidos del corazón de Iván.", imagePrompt: `Manga panel: Una brillante luz blanca emerge del centro del lago, iluminando el claro. ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} observan asombrados.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Razi', text: "Esto es una Luz del Destino. Aparecen en momentos de gran importancia, señalando decisiones cruciales o eventos que cambiarán el curso del multiverso.", imagePrompt: null, imageUrl: null, generated: false },
+                    { type: 'narration', text: "Iván dio un paso hacia el lago, fascinado. La luz lo envolvió, y por un momento, sintió como si estuviera viendo fragmentos de realidades alternativas: versiones de sí mismo tomando decisiones diferentes, enfrentando desafíos únicos, experimentando vidas completamente distintas.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} envuelto en la Luz del Destino, visiones fantasmales de sus yos alternativos a su alrededor.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Razi', text: "No sigas ciegamente la Luz -dijo Razi, citando un consejo antiguo atribuido a Kimura, la Científica del Infinito-. Comprende por qué brilla en este preciso instante, en este preciso lugar. Ahí reside la verdadera navegación del destino.", imagePrompt: null, imageUrl: null, generated: false },
+                    { type: 'narration', text: "Cuando abrió los ojos nuevamente, la luz había cambiado. Ahora tenía un tinte dorado, y en su centro apareció una figura etérea: ${CHAR_DESC.ANCIANO_GUARDIAN}.", imagePrompt: `Manga panel: La luz se vuelve dorada, y en su centro aparece ${CHAR_DESC.ANCIANO_GUARDIAN} ante ${CHAR_DESC.IVAN}.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Anciano Guardián', text: "Bienvenido, Iván. Las Luces del Destino han elegido revelarse ante ti porque tu camino está conectado con el futuro del multiverso.", imagePrompt: null, imageUrl: null, generated: false },
+                    { type: 'narration', text: "Antes de que Iván pudiera responder, la figura extendió una mano hacia él, entregándole un objeto pequeño pero pesado: una esfera de cristal que contenía un destello de luz.", imagePrompt: `Manga panel: Primer plano de la mano del ${CHAR_DESC.ANCIANO_GUARDIAN} entregando una esfera de cristal brillante a ${CHAR_DESC.IVAN}.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Anciano Guardián', text: "Esto es un Fragmento de Esencia. Contiene una parte de los 7 Saberes Fundamentales, las fuerzas primordiales que tejen la realidad. Úsalo sabiamente, pues será clave para enfrentar lo que está por venir.", imagePrompt: null, imageUrl: null, generated: false }
+                ]
+            },
+            {
+                title: "Capítulo 3: El Equilibrio Fracturado", id: "capitulo3",
+                summary: "Iván y Razi entrenan con Túbula en El Umbral de los Saberes, enfrentando la dualidad Umbra y Lux y al Eco Roto.",
+                panels: [
+                    { type: 'narration', text: "El entrenamiento formal con los Guardianes del Renacer comenzó al amanecer. Iván y Razi fueron llevados a un lugar conocido como El Umbral de los Saberes, una estructura flotante que parecía estar hecha de luz sólida y sombras etéreas.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} llegando a "El Umbral de los Saberes", una majestuosa estructura flotante de luz y sombras.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Túbula', text: "Bienvenidos. Soy Túbula, uno de los Guardianes Originales. Aquí aprenderán sobre los Siete Saberes Fundamentales...", imagePrompt: `Manga panel: ${CHAR_DESC.TUBULA} presentándose a ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI}. Siete símbolos místicos flotan.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Túbula extendió su mano, y frente a ellos aparecieron siete símbolos flotantes, cada uno representando un Saber. Iván sintió cómo su cuerpo respondía instintivamente al segundo símbolo: Umbra y Lux, la dualidad cósmica entre luz y oscuridad.", imagePrompt: `Manga panel: Los siete símbolos de los Saberes Fundamentales flotando. El símbolo de Umbra y Lux (quizás un círculo mitad luz, mitad oscuridad) brilla destacándose para ${CHAR_DESC.IVAN}.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Túbula', text: "Comenzaremos con lo que ya conocen. La dualidad no es solo un concepto abstracto; es una fuerza viva dentro de ustedes. Aprenderán a equilibrarla...", imagePrompt: null, imageUrl: null, generated: false },
+                    { type: 'narration', text: "El entrenamiento fue intenso. Durante días, Iván y Razi practicaron técnicas que combinaban luz y oscuridad. Iván luchaba por aceptar su lado oscuro, mientras que Razi debía aprender a controlar su naturaleza caótica sin reprimirla completamente.", imagePrompt: `Manga panel: Montaje de ${CHAR_DESC.IVAN} meditando con una sombra acechante y ${CHAR_DESC.RAZI} intentando controlar energía caótica.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Un día, durante una meditación guiada, Iván experimentó una visión inesperada. Se encontró parado en un campo infinito... Frente a él, una figura oscura emergió de las sombras.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} en un campo infinito, enfrentando una versión sombría de sí mismo.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Figura Oscura (de Iván)', text: "Eres tú." }, { type: 'dialogue', character: 'Iván', text: "No soy tú." },
+                    { type: 'dialogue', character: 'Figura Oscura (de Iván)', text: "Lo eres. Yo soy lo que temes, lo que rechazas. Pero también soy tu mayor fortaleza." },
+                    { type: 'narration', text: "Razi, por su parte, enfrentaba sus propios desafíos... accidentalmente creó un remolino de energía que amenazó con destruir todo a su alrededor.", imagePrompt: `Manga panel: ${CHAR_DESC.RAZI} de rodillas, frustrada, mientras ${CHAR_DESC.TUBULA} contiene un remolino de energía caótica.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Razi', text: "No puedo controlarlo. Es demasiado." },
+                    { type: 'dialogue', character: 'Túbula', text: "El control no es la respuesta. La clave está en el equilibrio. Debes aprender a fluir con el caos en lugar de intentar dominarlo." },
+                    { type: 'narration', text: "Su primera prueba real llegó cuando una entidad oscura conocida como El Eco Roto atacó el Umbral.", imagePrompt: `Manga panel: ${CHAR_DESC.ECO_ROTO} atacando El Umbral de los Saberes, que se agrieta o distorsiona.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Túbula', text: "Este es su momento. Si no pueden enfrentar esta amenaza, nunca podrán proteger el multiverso." },
+                    { type: 'narration', text: "Iván y Razi intercambiaron una mirada. Sabían que este era el momento de poner en práctica todo lo que habían aprendido. Trabajando juntos, comenzaron a fusionar sus habilidades en una técnica combinada: Cadenas de Luz y Oscuridad.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} espalda con espalda, preparando su ataque combinado.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Las cadenas surgieron de sus manos, envolviendo al Eco Roto y neutralizándolo lentamente.", imagePrompt: `Manga panel: Cadenas de luz dorada (Iván) y oscuridad violeta (Razi) surgiendo de sus manos y envolviendo al ${CHAR_DESC.ECO_ROTO}. Acción dinámica.`, imageUrl: null, generated: false, keyScene: true }
+                ]
+            },
+            {
+                title: "Capítulo 4: La Primera Misión", id: "capitulo4",
+                summary: "Iván y Razi neutralizan el Eco de las Sombras en una dimensión fracturada, liberando conciencias atrapadas.",
+                panels: [
+                    { type: 'narration', text: "Túbula los convocó al amanecer... Una anomalía ha surgido en una dimensión cercana, una grieta que amenaza con desestabilizar el equilibrio.", imagePrompt: `Manga panel: ${CHAR_DESC.TUBULA} con expresión seria, mostrando a ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} un holograma de una grieta dimensional oscura.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Túbula', text: "Es conocida como el Eco de las Sombras. Deben neutralizarla antes de que crezca y consuma toda la dimensión." },
+                    { type: 'narration', text: "Con estas palabras, Túbula extendió su mano, abriendo un portal frente a ellos. Iván sintió un escalofrío recorrer su espalda mientras cruzaban el umbral...", imagePrompt: `Manga panel: ${CHAR_DESC.TUBULA} abriendo un portal brillante y arremolinado. ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} a punto de cruzarlo.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "El mundo al que llegaron era un lugar extraño y hostil. El cielo estaba cubierto de nubes negras que parecían moverse con vida propia, y el suelo estaba cubierto de escombros flotantes que desafiaban las leyes de la gravedad.", imagePrompt: `Manga panel: Paisaje de la dimensión fracturada: cielo con nubes negras, escombros flotantes. ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} observando.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "En el centro de todo, una columna de energía oscura pulsaba como un corazón enfermo.", imagePrompt: `Manga panel: La imponente columna de energía oscura pulsando en el centro de la dimensión fracturada.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Avanzaron con cautela... Figuras etéreas emergieron de las sombras, sus formas fluctuando entre lo humano y lo monstruoso. Eran fragmentos de conciencia atrapados en la anomalía...", imagePrompt: `Manga panel: Figuras etéreas y sombrías, mitad humanas, mitad monstruosas, emergiendo de las sombras hacia ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI}.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Razi', text: "No podemos simplemente destruirlos. Están atrapados aquí." },
+                    { type: 'dialogue', character: 'Iván', text: "Entonces tendremos que liberarlos." },
+                    { type: 'narration', text: "Trabajando juntos, Iván y Razi comenzaron a canalizar sus poderes combinados. Iván usó su dominio sobre la oscuridad para calmar a las criaturas, mientras Razi utilizaba su conexión con las tormentas para purificar sus almas.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} usando energía oscura para calmar a las criaturas, ${CHAR_DESC.RAZI} usando energía de tormenta para purificar otras.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Sin embargo, la columna central seguía intacta... Iván cerró los ojos y buscó dentro de sí mismo... su cuerpo estaba envuelto en una energía brillante pero contenida.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} concentrado, una energía brillante y controlada lo envuelve, preparándose para un gran esfuerzo.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Iván', text: "Razi, necesito tu ayuda. Juntos, podemos usar las Cadenas de Luz y Oscuridad para sellar esta anomalía." },
+                    { type: 'narration', text: "Ambos unieron sus fuerzas, creando una red de energía que envolvió la columna oscura. La anomalía comenzó a resistirse... Finalmente... lograron sellar la anomalía...", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} uniendo sus poderes, creando una red de energía de luz y oscuridad que sella la columna de energía oscura. Esfuerzo máximo.`, imageUrl: null, generated: false, keyScene: true }
+                ]
+            },
+            {
+                title: "Capítulo 5: La Sombra Devoradora", id: "capitulo5",
+                summary: "Túbula advierte sobre el Ser Devorador. Iván y Razi enfrentan una prueba en el Abismo de los Reflejos y a un Guía Corrupto.",
+                panels: [
+                    { type: 'narration', text: "Al regresar al Umbral, Túbula los recibió con una expresión sombría... 'Temo que fue solo un síntoma de algo mucho mayor.'", imagePrompt: `Manga panel: ${CHAR_DESC.TUBULA} con expresión grave, dirigiéndose a ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} en El Umbral.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Túbula extendió su mano... una imagen etérea comenzó a formarse... planetas colapsando, estrellas apagándose, y una sombra inmensa que devoraba todo a su paso.", imagePrompt: `Manga panel: Visión holográfica mostrada por ${CHAR_DESC.TUBULA}: planetas destruidos, una sombra colosal (Ser Devorador) consumiendo una galaxia.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Túbula', text: "Esto es el Ser Devorador... Su propósito es consumir, destruir, y volver a tejer el multiverso según sus propios designios." },
+                    { type: 'dialogue', character: 'Iván', text: "¿Qué podemos hacer contra algo así?" },
+                    { type: 'dialogue', character: 'Túbula', text: "No pueden enfrentarlo directamente. No todavía... deben encontrar aliados." },
+                    { type: 'narration', text: "Iván y Razi partieron... hacia un lugar conocido como el Abismo de los Reflejos...", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} viajando a través de un paisaje cósmico distorsionado hacia el Abismo de los Reflejos.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Al llegar, se encontraron con un paisaje surrealista: espejos flotantes que reflejaban versiones alternativas de ellos mismos.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} en el Abismo de los Reflejos. Espejos flotantes muestran sus yos alternativos (uno oscuro, otro demasiado controlado).`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Uno a uno, los espejos comenzaron a cobrar vida, desafiándolos a aceptar sus sombras y sus luces... Finalmente, lograron superar la prueba.", imagePrompt: `Manga panel: ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} de pie, más fuertes, mientras los espejos se rompen o desvanecen.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'narration', text: "Guiados por el Fragmento de Destino, Iván y Razi llegaron a un planeta devastado... una figura encapuchada que parecía estar esperándolos.", imagePrompt: `Manga panel: Planeta devastado. ${CHAR_DESC.GUIA_CORRUPTO} encapuchado espera a ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI}.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Guía Corrupto', text: "Han venido." },
+                    { type: 'dialogue', character: 'Razi', text: "¿Quién eres?" },
+                    { type: 'dialogue', character: 'Guía Corrupto', text: "Soy un Guía Corrupto. Un sirviente del Devorador. Pero también soy una advertencia." },
+                    { type: 'narration', text: "Antes de que pudieran responder, la figura lanzó una oleada de energía oscura hacia ellos. Iván y Razi trabajaron juntos para contrarrestar el ataque...", imagePrompt: `Manga panel: ${CHAR_DESC.GUIA_CORRUPTO} atacando con energía oscura. ${CHAR_DESC.IVAN} y ${CHAR_DESC.RAZI} se defienden con una barrera de luz y tormenta.`, imageUrl: null, generated: false, keyScene: true },
+                    { type: 'dialogue', character: 'Guía Corrupto', text: "No es el planeta lo que busco. Es ustedes.", imagePrompt: `Manga panel: Primer plano del ${CHAR_DESC.GUIA_CORRUPTO}, sus ojos (si visibles) brillando con malicia antes de desaparecer.`, imageUrl: null, generated: false, keyScene: true }
+                ]
+            }
+        ];
+
+        // DOM Elements
+        const mainContent = document.getElementById('mainContent');
+        const mangaDisplay = document.getElementById('mangaDisplay');
+        const galleryDisplay = document.getElementById('galleryDisplay');
+        const characterGalleryGrid = document.getElementById('characterGalleryGrid');
+        const multiverseMapImage = document.getElementById('multiverseMapImage');
+        const chapterSelect = document.getElementById('chapterSelect');
+        const languageSelect = document.getElementById('languageSelect');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const galleryToggle = document.getElementById('galleryToggle');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadingIndicatorText = document.getElementById('loadingIndicatorText');
+        const prevPageButton = document.getElementById('prevPage');
+        const nextPageButton = document.getElementById('nextPage');
+        const pageIndicator = document.getElementById('pageIndicator');
+        const imageModal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const summaryDisplay = document.getElementById('summaryDisplay');
+        const summaryText = document.getElementById('summaryText');
+        const presentationModeToggle = document.getElementById('presentationModeToggle');
+        const nextPanelButton = document.getElementById('nextPanelButton');
+        const autoReadToggle = document.getElementById('autoReadToggle');
+        const autoAdvanceToggle = document.getElementById('autoAdvanceToggle');
+        const autoAdvanceToggleLabel = document.getElementById('autoAdvanceToggleLabel');
+        const screenPrevArrow = document.getElementById('screenPrevArrow');
+        const screenNextArrow = document.getElementById('screenNextArrow');
+        const aiExploreInput = document.getElementById('aiExploreInput');
+        const aiExploreButton = document.getElementById('aiExploreButton');
+        const aiExploreResultModal = document.getElementById('aiExploreResultModal');
+        const aiExploreModalText = document.getElementById('aiExploreModalText');
+        const continueModal = document.getElementById('continueModal');
+        const continueModalText = document.getElementById('continueModalText');
+        const continueYesButton = document.getElementById('continueYes');
+        const continueNoButton = document.getElementById('continueNo');
+        
+        // State Variables
+        let currentChapterId = "capitulo1"; 
+        let currentPage = 0; // Represents current panel index in pagination mode
+        const panelsPerPage = 1; 
+        let isPresentationMode = false;
+        let currentPanelIndexInPresentation = 0;
+        let chapterPanelsCache = [];
+        let viewMode = 'manga'; 
+        let currentLanguage = 'es-MX';
+        let availableVoices = [];
+        let selectedVoiceURI = null;
+
+        const synth = window.speechSynthesis;
+        let currentUtterance = null;
+
+        // --- Function Definitions ---
+        function updatePresentationModeUI() {
+            if (isPresentationMode) {
+                presentationModeToggle.innerHTML = '<i class="fas fa-columns mr-2"></i>Modo Paginado';
+                presentationModeToggle.classList.replace('bg-teal-600', 'bg-orange-600');
+                presentationModeToggle.classList.replace('hover:bg-teal-700', 'hover:bg-orange-700');
+                if(autoReadToggleLabel) autoReadToggleLabel.classList.remove('hidden');
+                if(autoAdvanceToggleLabel) autoAdvanceToggleLabel.classList.remove('hidden');
+            } else {
+                presentationModeToggle.innerHTML = '<i class="fas fa-film mr-2"></i>Modo Cine';
+                presentationModeToggle.classList.replace('bg-orange-600', 'bg-teal-600');
+                presentationModeToggle.classList.replace('hover:bg-orange-700', 'hover:bg-teal-700');
+                if(autoReadToggleLabel) autoReadToggleLabel.classList.add('hidden');
+                if(autoAdvanceToggleLabel) autoAdvanceToggleLabel.classList.add('hidden');
+            }
+        }
+
+        function updateViewModeUI() {
+            if (viewMode === 'gallery') {
+                mangaDisplay.classList.add('hidden');
+                summaryDisplay.classList.add('hidden');
+                document.querySelector('.ai-explore-box').classList.add('hidden');
+                paginationControls.classList.add('hidden');
+                document.querySelector('.settings-grid').classList.add('hidden'); 
+                document.querySelector('.mb-8.flex.flex-col.sm\\:flex-row').classList.add('hidden'); 
+
+                galleryDisplay.classList.remove('hidden');
+                galleryToggle.innerHTML = '<i class="fas fa-book-open mr-2"></i>Ver Manga';
+                galleryToggle.classList.replace('bg-[var(--accent-gold)]','bg-[var(--accent-cosmic-blue)]');
+                galleryToggle.classList.replace('text-[var(--bg-deep-space)]','text-white');
+            } else { 
+                galleryDisplay.classList.add('hidden');
+                mangaDisplay.classList.remove('hidden');
+                document.querySelector('.settings-grid').classList.remove('hidden');
+                document.querySelector('.mb-8.flex.flex-col.sm\\:flex-row').classList.remove('hidden');
+
+
+                const chapter = mangaData.find(ch => ch.id === currentChapterId);
+                const currentDisplayPanel = chapterPanelsCache.length > 0 ? chapterPanelsCache[isPresentationMode ? currentPanelIndexInPresentation : currentPage] : null;
+
+                if (chapter && chapter.summary && !(currentDisplayPanel && currentDisplayPanel.isPlaceholder)) { 
+                    summaryDisplay.classList.remove('hidden');
+                } else {
+                    summaryDisplay.classList.add('hidden');
+                }
+                document.querySelector('.ai-explore-box').classList.remove('hidden');
+                if(!isPresentationMode) paginationControls.classList.remove('hidden');
+                galleryToggle.innerHTML = '<i class="fas fa-images mr-2"></i>Galería';
+                galleryToggle.classList.replace('bg-[var(--accent-cosmic-blue)]','bg-[var(--accent-gold)]');
+                galleryToggle.classList.replace('text-white','text-[var(--bg-deep-space)]');
+            }
+            updateScreenArrowStates();
+        }
+
+        function populateVoices() {
+            availableVoices = synth.getVoices().filter(voice => voice.lang.startsWith(currentLanguage.split('-')[0]));
+            voiceSelect.innerHTML = '<option value="">Voz por defecto del sistema</option>';
+            
+            const maleVoices = availableVoices.filter(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('hombre') || v.gender === 'male');
+            const femaleVoices = availableVoices.filter(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('mujer') || v.gender === 'female');
+
+            maleVoices.slice(0, 3).forEach(voice => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (Hombre - ${voice.lang})`;
+                option.setAttribute('value', voice.voiceURI);
+                voiceSelect.appendChild(option);
+            });
+
+            femaleVoices.slice(0, 3).forEach(voice => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (Mujer - ${voice.lang})`;
+                option.setAttribute('value', voice.voiceURI);
+                voiceSelect.appendChild(option);
+            });
+            voiceSelect.disabled = availableVoices.length === 0;
+            if (selectedVoiceURI) voiceSelect.value = selectedVoiceURI;
+        }
+
+
+        function speak(text, buttonToUpdate, callback) {
+            if (synth.speaking) {
+                synth.cancel();
+                if (currentUtterance && currentUtterance.text === text && buttonToUpdate) {
+                    if(buttonToUpdate) {buttonToUpdate.classList.remove('speaking'); buttonToUpdate.innerHTML = '<i class="fas fa-volume-up mr-1"></i>Leer';}
+                    currentUtterance = null; if (callback) callback(); return;
+                }
+                document.querySelectorAll('.tts-button.speaking').forEach(btn => {
+                    btn.classList.remove('speaking'); btn.innerHTML = '<i class="fas fa-volume-up mr-1"></i>Leer';
+                });
+            }
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = currentLanguage;
+            if (selectedVoiceURI) {
+                const voice = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
+                if (voice) utterance.voice = voice;
+            }
+            
+            utterance.onstart = () => { if (buttonToUpdate) { buttonToUpdate.classList.add('speaking'); buttonToUpdate.innerHTML = '<i class="fas fa-stop mr-1"></i>Detener'; } };
+            utterance.onend = () => {
+                if (buttonToUpdate) { buttonToUpdate.classList.remove('speaking'); buttonToUpdate.innerHTML = '<i class="fas fa-volume-up mr-1"></i>Leer'; }
+                currentUtterance = null; 
+                if (isPresentationMode && autoReadToggle.checked && autoAdvanceToggle.checked && callback) {
+                    setTimeout(callback, 500); 
+                } else if (callback) {
+                    callback(); 
+                }
+            };
+            utterance.onerror = (event) => {
+                console.error('SpeechSynthesisUtterance.onerror', event);
+                if (buttonToUpdate) { buttonToUpdate.classList.remove('speaking'); buttonToUpdate.innerHTML = '<i class="fas fa-volume-up mr-1"></i>Leer'; }
+                currentUtterance = null; if (callback) callback();
+            };
+            currentUtterance = utterance; synth.speak(utterance);
+        }
+
+        async function generateImage(prompt) {
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+            const payload = { instances: [{ prompt: prompt }], parameters: { "sampleCount": 1 } };
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) {
+                    let responseBodyText = ""; 
+                    try { 
+                        responseBodyText = await response.text(); 
+                        if (!responseBodyText.trim() && response.status === 401) { 
+                             responseBodyText = "[Unauthorized - No additional details in response body]";
+                        }
+                    } catch (e) { 
+                        responseBodyText = "[Could not read error response body]"; 
+                    }
+                    const errorDetails = `API request failed: ${response.status}. Body: ${responseBodyText}`; 
+                    console.error("API Error:", errorDetails); 
+                    throw new Error(errorDetails);
+                }
+                const result = await response.json();
+                if (result.predictions && result.predictions[0] && result.predictions[0].bytesBase64Encoded) return `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+                console.error("No image data:", result); return `https://placehold.co/800x520/202030/A0A0CC?text=No+Image`; 
+            } catch (error) { console.error("Img Gen Error:", error.message); return `https://placehold.co/800x520/FF0000/FFFFFF?text=Failed`; }
+        }
+
+        async function generateGeminiText(prompt) {
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) {
+                    let errorBody = ""; try { errorBody = await response.text(); } catch(e){ errorBody = "Could not read error body.";}
+                    console.error(`Gemini API Error: ${response.status}`, errorBody); throw new Error(`Gemini API request failed: ${response.status}`);
+                }
+                const result = await response.json();
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts[0].text) {
+                    return result.candidates[0].content.parts[0].text;
+                }
+                console.error("Unexpected Gemini API response:", result); return "No se pudo generar la respuesta.";
+            } catch (error) { console.error("Error calling Gemini API:", error); return "Error al contactar la IA."; }
+        }
+        
+        async function getPanelSummaryAI(panelFullText, summaryDisplayElement, button) {
+            button.disabled = true; button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resumiendo...';
+            summaryDisplayElement.textContent = 'Generando resumen...'; summaryDisplayElement.classList.remove('hidden');
+            const prompt = `Resume el siguiente texto de un panel de manga de fantasía en una o dos frases cortas, manteniendo el tono épico y misterioso: "${panelFullText}"`;
+            const summary = await generateGeminiText(prompt);
+            summaryDisplayElement.textContent = summary; button.disabled = false; button.innerHTML = '✨ Resumir Panel';
+        }
+
+        async function exploreConceptAI() {
+            const concept = aiExploreInput.value.trim();
+            if (!concept) {
+                aiExploreModalText.innerHTML = "<p>Por favor, ingresa un concepto para explorar.</p>";
+                aiExploreResultModal.style.display = 'flex'; return;
+            }
+            aiExploreButton.disabled = true; aiExploreButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Explorando...';
+            loadingIndicatorText.textContent = "Explorando concepto con IA..."; loadingIndicator.classList.remove('hidden');
+            const prompt = `Como un sabio erudito del multiverso en una saga de fantasía épica, explica brevemente el concepto de "${concept}". La historia involucra guardianes, el equilibrio entre luz y oscuridad, el Silencio Primordial y las Luces del Destino. Tu explicación debe ser concisa (2-4 frases), evocadora y mantener un tono de misterio y sabiduría ancestral.`;
+            const explanation = await generateGeminiText(prompt);
+            aiExploreModalText.innerHTML = `<p>${explanation.replace(/\n/g, '<br>')}</p>`;
+            aiExploreResultModal.style.display = 'flex';
+            aiExploreButton.disabled = false; aiExploreButton.innerHTML = '<i class="fas fa-search-plus mr-2"></i>Explorar';
+            loadingIndicator.classList.add('hidden'); loadingIndicatorText.textContent = "Generando imágenes...";
+        }
+
+        function renderPanel(panelData, panelNum, totalPanelsInChapter) {
+            const panelDiv = document.createElement('div');
+            panelDiv.className = 'manga-panel shadow-xl'; 
+            panelDiv.id = `panel-${panelData.originalIndex !== undefined ? panelData.originalIndex : panelNum}`;
+            
+            const panelInfoDiv = document.createElement('div');
+            panelInfoDiv.className = 'panel-info';
+            const chapterObject = mangaData.find(ch => ch.id === currentChapterId);
+            const chapterTitle = chapterObject ? chapterObject.title.split(':')[0] : currentChapterId.replace("capitulo", "Capítulo ");
+            panelInfoDiv.textContent = `${chapterTitle} - Panel ${panelNum + 1} de ${totalPanelsInChapter}`;
+            panelDiv.appendChild(panelInfoDiv);
+
+            if (panelData.isPlaceholder) {
+                 panelDiv.innerHTML += `<div class="placeholder-message p-10 text-center text-gray-500">El contenido detallado y las imágenes para este capítulo se añadirán próximamente.</div>`;
+                 return panelDiv;
+            }
+            if (panelData.imageUrl || panelData.imagePrompt) {
+                const imageContainer = document.createElement('div'); imageContainer.className = 'manga-image-container';
+                const img = document.createElement('img');
+                img.alt = panelData.text ? panelData.text.substring(0, 50) + "..." : "Panel de manga";
+                img.className = 'manga-image';
+                img.onerror = () => { img.src = `https://placehold.co/800x520/202030/A0A0CC?text=Error`; };
+                img.onclick = () => { modalImage.src = img.src; imageModal.style.display = 'flex'; };
+                if (panelData.imageUrl) { img.src = panelData.imageUrl; }
+                else { img.src = `https://placehold.co/800x520/202030/A0A0CC?text=${panelData.text ? panelData.text.substring(0,15).replace(/\s/g,'+')+'...' : 'Cargando...'}`; }
+                imageContainer.appendChild(img); panelDiv.appendChild(imageContainer);
+            }
+            if (panelData.text) {
+                const textContentDiv = document.createElement('div'); textContentDiv.className = 'manga-text-content';
+                let textContentForTTS = panelData.text; const textP = document.createElement('p');
+                if (panelData.type === 'narration') { textP.classList.add('narration'); textP.innerHTML = panelData.text; }
+                else if (panelData.type === 'dialogue') {
+                    textP.classList.add('dialogue'); textContentForTTS = `${panelData.character} dice: ${panelData.text}`;
+                    textP.innerHTML = `<span class="character-name">${panelData.character}:</span> ${panelData.text}`;
+                }
+                textContentDiv.appendChild(textP);
+                const buttonsContainer = document.createElement('div'); buttonsContainer.className = 'mt-4 flex flex-wrap gap-3';
+                const ttsButton = document.createElement('button'); ttsButton.className = 'tts-button'; 
+                ttsButton.innerHTML = '<i class="fas fa-volume-up mr-1"></i>Leer';
+                ttsButton.setAttribute('aria-label', 'Leer texto'); ttsButton.dataset.textToSpeak = textContentForTTS;
+                ttsButton.onclick = (e) => { e.stopPropagation(); speak(textContentForTTS, ttsButton, () => {
+                    if (isPresentationMode && autoReadToggle.checked && autoAdvanceToggle.checked) {
+                        showNextPanelInPresentation();
+                    }
+                }); };
+                buttonsContainer.appendChild(ttsButton);
+                const aiSummaryButton = document.createElement('button'); aiSummaryButton.className = 'ai-button';
+                aiSummaryButton.innerHTML = '✨ Resumir Panel';
+                aiSummaryButton.onclick = (e) => { e.stopPropagation();
+                    const summaryDisplayDiv = panelDiv.querySelector('.ai-summary-display');
+                    getPanelSummaryAI(panelData.text, summaryDisplayDiv, aiSummaryButton);
+                };
+                buttonsContainer.appendChild(aiSummaryButton); textContentDiv.appendChild(buttonsContainer);
+                const aiSummaryDisplayDiv = document.createElement('div');
+                aiSummaryDisplayDiv.className = 'ai-summary-display hidden'; 
+                textContentDiv.appendChild(aiSummaryDisplayDiv); panelDiv.appendChild(textContentDiv); 
+            }
+            return panelDiv;
+        }
+        
+        async function prepareChapterForCinemaMode(chapterId) {
+            const chapter = mangaData.find(ch => ch.id === chapterId);
+            if (!chapter || (chapter.panels && chapter.panels[0] && chapter.panels[0].isPlaceholder)) { 
+                return true; 
+            }
+
+            const panelsToGenerate = chapter.panels.filter(panel => panel.imagePrompt && !panel.generated);
+            if (panelsToGenerate.length > 0) {
+                loadingIndicatorText.textContent = "Preparando imágenes para Modo Cine...";
+                loadingIndicator.classList.remove('hidden');
+                await Promise.all(panelsToGenerate.map(async (panel) => {
+                    const generatedUrl = await generateImage(panel.imagePrompt);
+                    panel.imageUrl = generatedUrl;
+                    panel.generated = true;
+                }));
+                loadingIndicator.classList.add('hidden');
+            }
+            return true; 
+        }
+
+
+        async function loadChapter(chapterId, requestedPageIndex = 0, fromContinuation = false) {
+            if (!fromContinuation) saveProgress(); 
+
+            viewMode = 'manga'; updateViewModeUI(); 
+            const chapterExistsInData = mangaData.some(ch => ch.id === chapterId);
+            if (!chapterExistsInData && chapterId.startsWith("capitulo")) { 
+                isPresentationMode = false; updatePresentationModeUI(); currentChapterId = chapterId; currentPage = 0;
+                mangaDisplay.innerHTML = ''; 
+                const placeholderPanel = { type: 'placeholder', text: `Contenido para ${chapterId.replace("capitulo", "Capítulo ")} no implementado.`, isPlaceholder: true, originalIndex: 0 };
+                chapterPanelsCache = [placeholderPanel]; 
+                const panelElement = renderPanel(placeholderPanel, 0, 1); mangaDisplay.appendChild(panelElement);
+                setTimeout(() => panelElement.classList.add('visible'), 50);
+                summaryDisplay.classList.add('hidden'); updatePaginationControls(1); updateScreenArrowStates(); return;
+            }
+            const chapter = mangaData.find(ch => ch.id === chapterId); if (!chapter) return; 
+            
+            const alreadyOnPage = currentChapterId === chapterId && currentPage === requestedPageIndex && !isPresentationMode && chapter.panels.every(p => !p.keyScene || p.generated);
+            if (alreadyOnPage) { renderCurrentPage(); return; }
+
+
+            if(!isPresentationMode) {
+                 isPresentationMode = false; 
+                 updatePresentationModeUI();
+            }
+            currentChapterId = chapterId; 
+            currentPage = requestedPageIndex; 
+            currentPanelIndexInPresentation = requestedPageIndex; 
+            
+            chapterPanelsCache = chapter.panels.map((p, i) => ({...p, originalIndex: i}));
+            chapterSelect.value = chapterId;
+
+            if (!isPresentationMode) { // Only generate for current page in pagination mode
+                const start = currentPage * panelsPerPage; // panelsPerPage is 1
+                const end = start + panelsPerPage;
+                const panelsForCurrentPage = chapter.panels.slice(start, end);
+                const keyPanelsToGenerateOnLoad = panelsForCurrentPage.filter(panel => panel.keyScene && !panel.generated);
+
+                if (keyPanelsToGenerateOnLoad.length > 0) {
+                    loadingIndicatorText.textContent = "Generando imágenes del manga..."; loadingIndicator.classList.remove('hidden');
+                    await Promise.all(keyPanelsToGenerateOnLoad.map(async (panel) => {
+                        if (panel.imagePrompt && !panel.generated) {
+                            const generatedUrl = await generateImage(panel.imagePrompt); panel.imageUrl = generatedUrl; panel.generated = true; 
+                        }
+                    }));
+                    loadingIndicator.classList.add('hidden');
+                }
+            }
+            // For Cinema Mode, images are pre-generated by prepareChapterForCinemaMode when entering the mode.
+            
+            renderCurrentPage();
+            if (chapter.summary && !chapter.isPlaceholder && !(chapterPanelsCache.length > 0 && chapterPanelsCache[0].isPlaceholder)) { 
+                 summaryText.textContent = chapter.summary; summaryDisplay.classList.remove('hidden'); 
+            } else { 
+                summaryDisplay.classList.add('hidden'); 
+            }
+        }
+
+        function renderCurrentPage() {
+            mangaDisplay.innerHTML = ''; 
+            const chapter = mangaData.find(ch => ch.id === currentChapterId);
+            let totalPanelsInChapter = 0;
+            if (chapter) totalPanelsInChapter = chapter.panels.length;
+            else if (currentChapterId && currentChapterId.startsWith("capitulo")) totalPanelsInChapter = 1; 
+
+            if (!chapter && currentChapterId && currentChapterId.startsWith("capitulo")) { 
+                const placeholderPanel = { type: 'placeholder', text: `Contenido para ${currentChapterId.replace("capitulo", "Capítulo ")} no implementado.`, isPlaceholder: true, originalIndex: 0 };
+                chapterPanelsCache = [placeholderPanel];
+                const panelElement = renderPanel(placeholderPanel, 0, 1); mangaDisplay.appendChild(panelElement);
+                setTimeout(() => panelElement.classList.add('visible'), 50);
+                if (isPresentationMode) { nextPanelButton.disabled = true; } else { updatePaginationControls(1); }
+                updateScreenArrowStates(); return;
+            }
+            if (!chapter || !chapterPanelsCache || chapterPanelsCache.length === 0) return;
+
+            if (isPresentationMode) {
+                paginationControls.classList.add('hidden'); nextPanelButton.classList.remove('hidden');
+                screenPrevArrow.classList.add('hidden'); screenNextArrow.classList.add('hidden');
+                if (currentPanelIndexInPresentation < chapterPanelsCache.length) {
+                    const panelData = chapterPanelsCache[currentPanelIndexInPresentation];
+                    const panelElement = renderPanel(panelData, currentPanelIndexInPresentation, totalPanelsInChapter);
+                    mangaDisplay.appendChild(panelElement); setTimeout(() => panelElement.classList.add('visible'), 50);
+                    panelElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (autoReadToggle.checked && panelData.text && !panelData.isPlaceholder) {
+                        const ttsButton = panelElement.querySelector('.tts-button');
+                        if (ttsButton) speak(ttsButton.dataset.textToSpeak, ttsButton, () => {
+                             if (autoAdvanceToggle.checked) showNextPanelInPresentation();
+                        });
+                    }
+                }
+                nextPanelButton.disabled = currentPanelIndexInPresentation >= chapterPanelsCache.length - 1;
+            } else {
+                paginationControls.classList.remove('hidden'); nextPanelButton.classList.add('hidden');
+                screenPrevArrow.classList.remove('hidden'); screenPrevArrow.classList.add('sm:flex');
+                screenNextArrow.classList.remove('hidden'); screenNextArrow.classList.add('sm:flex');
+                const totalPanels = chapter.panels.length; 
+                if (currentPage < totalPanels) {
+                    const panelData = chapter.panels[currentPage];
+                    const panelElement = renderPanel(panelData, currentPage, totalPanels);
+                    mangaDisplay.appendChild(panelElement); setTimeout(() => panelElement.classList.add('visible'), 50);
+                }
+                updatePaginationControls(totalPanels); if (!isPresentationMode) window.scrollTo(0, 0);
+            }
+            updateScreenArrowStates();
+            if (!isPresentationMode) saveProgress(); 
+        }
+
+        function updatePaginationControls(totalPages) {
+            pageIndicator.textContent = `Panel ${currentPage + 1} de ${totalPages}`;
+            prevPageButton.disabled = currentPage === 0; nextPageButton.disabled = currentPage >= totalPages - 1;
+        }
+        
+        async function togglePresentationMode() { 
+            if (!isPresentationMode) { 
+                const chapter = mangaData.find(ch => ch.id === currentChapterId);
+                if (!chapter && !(currentChapterId && currentChapterId.startsWith("capitulo"))) return;
+                
+                await prepareChapterForCinemaMode(currentChapterId); 
+                
+                isPresentationMode = true;
+                currentPanelIndexInPresentation = currentPage; 
+                if (chapter) { 
+                    chapterPanelsCache = chapter.panels.map((p, i) => ({...p, originalIndex: i}));
+                } else { 
+                    const placeholderPanel = { type: 'placeholder', text: `Contenido para ${currentChapterId.replace("capitulo", "Capítulo ")} no implementado.`, isPlaceholder: true, originalIndex: 0 };
+                    chapterPanelsCache = [placeholderPanel];
+                }
+            } else { 
+                isPresentationMode = false;
+                currentPage = currentPanelIndexInPresentation; 
+                if (synth.speaking) synth.cancel();
+            }
+            updatePresentationModeUI(); 
+            renderCurrentPage(); 
+        }
+
+
+        function showNextPanelInPresentation() {
+            if (!isPresentationMode || !chapterPanelsCache || chapterPanelsCache.length === 0) return;
+            if (currentPanelIndexInPresentation < chapterPanelsCache.length - 1) { 
+                currentPanelIndexInPresentation++; 
+                renderCurrentPage(); 
+                saveProgress(); 
+            }
+        }
+        function showPrevPanelInPresentation() {
+            if (!isPresentationMode || !chapterPanelsCache || chapterPanelsCache.length === 0) return;
+            if (currentPanelIndexInPresentation > 0) { 
+                currentPanelIndexInPresentation--; 
+                renderCurrentPage();
+                saveProgress(); 
+            }
+        }
+
+        function navigatePage(direction) {
+            if (viewMode === 'gallery') return; 
+            if (isPresentationMode) {
+                if (direction === 'next') showNextPanelInPresentation(); else if (direction === 'prev') showPrevPanelInPresentation();
+            } else {
+                const chapter = mangaData.find(ch => ch.id === currentChapterId); let totalPanelsOrPages;
+                if (chapter) { totalPanelsOrPages = chapter.panels.length; } else { totalPanelsOrPages = 1; }
+                if (direction === 'next' && currentPage < totalPanelsOrPages - 1) { currentPage++; renderCurrentPage(); } 
+                else if (direction === 'prev' && currentPage > 0) { currentPage--; renderCurrentPage(); }
+            }
+        }
+        
+        function updateScreenArrowStates() {
+             if (viewMode === 'gallery') {
+                screenPrevArrow.classList.add('hidden'); screenNextArrow.classList.add('hidden'); return;
+            }
+            screenPrevArrow.classList.remove('hidden'); screenPrevArrow.classList.add('sm:flex');
+            screenNextArrow.classList.remove('hidden'); screenNextArrow.classList.add('sm:flex');
+
+            if (isPresentationMode) {
+                screenPrevArrow.disabled = currentPanelIndexInPresentation <= 0;
+                screenNextArrow.disabled = currentPanelIndexInPresentation >= chapterPanelsCache.length - 1;
+            } else {
+                 const chapter = mangaData.find(ch => ch.id === currentChapterId); let totalItems = 1; 
+                 if (chapter) { totalItems = chapter.panels.length; }
+                screenPrevArrow.disabled = currentPage <= 0; screenNextArrow.disabled = currentPage >= totalItems - 1;
+            }
+        }
+
+        function closeModalOutside(event, modalId) { 
+            const modal = document.getElementById(modalId);
+            if (event.target === modal) { modal.style.display = 'none'; } 
+        }
+        
+        async function renderCharacterGallery() {
+            characterGalleryGrid.innerHTML = ''; 
+            loadingIndicatorText.textContent = "Generando Galería de Personajes...";
+            loadingIndicator.classList.remove('hidden');
+            for (const char of characterGalleryData) {
+                const card = document.createElement('div'); card.className = 'character-card';
+                const imgContainer = document.createElement('div'); imgContainer.className = 'character-card-image-container';
+                const img = document.createElement('img'); img.className = 'character-card-image'; img.alt = `Retrato de ${char.name}`;
+                if (!char.generated || !char.imageUrl) {
+                    const generatedUrl = await generateImage(char.imagePrompt); char.imageUrl = generatedUrl; char.generated = true;
+                }
+                img.src = char.imageUrl; img.onerror = () => img.src = `https://placehold.co/300x300/252538/A0A0CC?text=${char.name.replace(/\s/g,'+')}`;
+                imgContainer.appendChild(img);
+                card.innerHTML += `<h5>${char.name}</h5><p>${char.description}</p>`;
+                if(char.powers) card.innerHTML += `<p><strong>Poderes:</strong> ${char.powers}</p>`;
+                if(char.skills) card.innerHTML += `<p><strong>Habilidades:</strong> ${char.skills}</p>`;
+                if(char.items) card.innerHTML += `<p><strong>Objetos Clave:</strong> ${char.items}</p>`;
+                card.insertBefore(imgContainer, card.firstChild); characterGalleryGrid.appendChild(card);
+            }
+            if (!multiverseMapImage.dataset.generated) {
+                 const mapPrompt = "Mapa conceptual del multiverso estilo fantasía cósmica, mostrando dimensiones interconectadas, portales brillantes, nebulosas de colores y quizás una estructura central como 'El Umbral'. Épico, detallado, evocador.";
+                 const mapUrl = await generateImage(mapPrompt); multiverseMapImage.src = mapUrl; multiverseMapImage.dataset.generated = true;
+            }
+            loadingIndicator.classList.add('hidden');
+        }
+
+        function toggleGalleryView() {
+            if (viewMode === 'manga') { viewMode = 'gallery'; renderCharacterGallery(); } 
+            else { viewMode = 'manga'; }
+            updateViewModeUI(); 
+        }
+
+        const PROGRESS_KEY = 'ivanRazielMangaProgress_v2'; 
+        function saveProgress() {
+            if(currentChapterId && (isPresentationMode || currentPage !== undefined)) { 
+                const progress = {
+                    chapterId: currentChapterId,
+                    panelIndex: isPresentationMode ? currentPanelIndexInPresentation : currentPage,
+                    language: currentLanguage,
+                    voiceURI: selectedVoiceURI,
+                    autoRead: autoReadToggle.checked,
+                    autoAdvance: autoAdvanceToggle.checked
+                };
+                localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+            }
+        }
+
+        function loadProgress() {
+            const savedProgress = localStorage.getItem(PROGRESS_KEY);
+            if (savedProgress) {
+                const progress = JSON.parse(savedProgress);
+                const chapterObject = mangaData.find(ch => ch.id === progress.chapterId);
+                const chapterTitle = chapterObject ? chapterObject.title.split(':')[0] : progress.chapterId.replace("capitulo", "Capítulo ");
+                
+                continueModalText.textContent = `¿Deseas continuar desde ${chapterTitle}, panel ${progress.panelIndex + 1}?`;
+                continueModal.style.display = 'flex';
+
+                continueYesButton.onclick = () => {
+                    currentLanguage = progress.language || 'es-MX';
+                    languageSelect.value = currentLanguage;
+                    selectedVoiceURI = progress.voiceURI || null;
+                    autoReadToggle.checked = progress.autoRead || false;
+                    autoAdvanceToggle.checked = progress.autoAdvance || false;
+
+                    if (synth.getVoices().length) { 
+                        populateVoices();
+                        if(selectedVoiceURI) voiceSelect.value = selectedVoiceURI;
+                    } else { 
+                        speechSynthesis.onvoiceschanged = () => {
+                            populateVoices();
+                            if(selectedVoiceURI) voiceSelect.value = selectedVoiceURI;
+                            speechSynthesis.onvoiceschanged = null; 
+                        };
+                    }
+                    
+                    loadChapter(progress.chapterId, progress.panelIndex, true);
+                    continueModal.style.display = 'none';
+                };
+                continueNoButton.onclick = () => {
+                    localStorage.removeItem(PROGRESS_KEY);
+                    continueModal.style.display = 'none';
+                    loadChapter(currentChapterId, 0, true); 
+                };
+
+            } else {
+                loadChapter(currentChapterId, 0, true); 
+            }
+        }
+
+
+        function initialize() {
+            const prologueOption = document.createElement('option'); prologueOption.value = "prologo";
+            prologueOption.textContent = "Prólogo: El Llamado del Vacío"; chapterSelect.appendChild(prologueOption);
+            for (let i = 1; i <= 60; i++) {
+                const option = document.createElement('option'); option.value = `capitulo${i}`;
+                const chapterData = mangaData.find(ch => ch.id === `capitulo${i}`);
+                option.textContent = chapterData ? `Capítulo ${i}: ${chapterData.title.split(': ')[1] || `Título Pendiente ${i}`}` : `Capítulo ${i}`;
+                chapterSelect.appendChild(option);
+            }
+            chapterSelect.value = currentChapterId; 
+            chapterSelect.onchange = () => { loadChapter(chapterSelect.value); };
+            
+            languageSelect.onchange = () => {
+                currentLanguage = languageSelect.value;
+                selectedVoiceURI = null; 
+                populateVoices();
+                saveProgress(); 
+            };
+            voiceSelect.onchange = () => {
+                selectedVoiceURI = voiceSelect.value;
+                saveProgress(); 
+            };
+            autoReadToggle.onchange = saveProgress;
+            autoAdvanceToggle.onchange = saveProgress;
+
+
+            prevPageButton.addEventListener('click', () => navigatePage('prev'));
+            nextPageButton.addEventListener('click', () => navigatePage('next'));
+            screenPrevArrow.addEventListener('click', () => navigatePage('prev'));
+            screenNextArrow.addEventListener('click', () => navigatePage('next'));
+            presentationModeToggle.addEventListener('click', togglePresentationMode);
+            nextPanelButton.addEventListener('click', showNextPanelInPresentation);
+            aiExploreButton.addEventListener('click', exploreConceptAI);
+            galleryToggle.addEventListener('click', toggleGalleryView);
+
+            const autoReadLabel = document.getElementById('autoReadToggleLabel'); if(autoReadLabel) autoReadLabel.classList.add('hidden');
+            const autoAdvanceLabel = document.getElementById('autoAdvanceToggleLabel'); if(autoAdvanceLabel) autoAdvanceLabel.classList.add('hidden');
+            
+            document.addEventListener('keydown', (event) => {
+                if (imageModal.style.display === 'flex' || aiExploreResultModal.style.display === 'flex' || continueModal.style.display === 'flex' || event.target.tagName === 'SELECT' || event.target.tagName === 'INPUT') return; 
+                if (event.key === 'ArrowRight') { navigatePage('next'); } else if (event.key === 'ArrowLeft') { navigatePage('prev'); }
+            });
+            
+            if (typeof speechSynthesis !== 'undefined') {
+                if (speechSynthesis.onvoiceschanged !== undefined) {
+                    speechSynthesis.onvoiceschanged = populateVoices;
+                }
+                populateVoices(); 
+            }
+            
+            updateViewModeUI(); 
+            loadProgress(); 
+        }
+        document.addEventListener('DOMContentLoaded', initialize);
+    </script>
+</body>
+</html>
